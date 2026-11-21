@@ -359,47 +359,93 @@ draw();
 })();
 </script>
 <script>
-  const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRApLpoOQcqsTbo8lfuCFMPfjCyfwe2NPJlz2BwT5OD0MQxhvjMhbFosDBwn1UE78juAOlgSSFfB13l/pub?gid=0&single=true&output=csv';
-  const TG_USERNAME = 'hop_33';
+const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRApLpo0QcqsTbo8lfuCFMPfjCyfwe2NPJlz2BwT5OD0MQxhvjMhbFosDBwn1UE78juA0lgSSFfB131/pub?gid=0&single=true&output=csv';
+const TG_USERNAME = 'hop_33';
 
-  async function loadCatalog() {
-    try {
-      const res = await fetch(CSV_URL);
-      const text = await res.text();
-      const rows = text.split('\n').slice(1);
-      const catalog = document.getElementById('sheet-catalog');
-      if (!catalog) return;
-      catalog.innerHTML = '';
+function parseCsvRow(row) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
 
-      rows.forEach(row => {
-        if (!row.trim()) return;
-        const [name, price, available, photo] = row.split(',');
-        if (!name || available?.trim().toLowerCase() === 'ні') return;
-
-        const cleanName = name.trim();
-        const cleanPrice = price ? price.trim() : '';
-        const cleanAvail = available ? available.trim() : 'є';
-        const cleanPhoto = photo ? photo.trim() : '';
-
-        const msg = encodeURIComponent(`Добрий день! Хочу замовити: ${cleanName}${cleanPrice ? ` (${cleanPrice} грн)` : ''}`);
-        const tgLink = `https://t.me/${TG_USERNAME}?text=${msg}`;
-
-        catalog.innerHTML += `
-          <div class="item">
-            ${cleanPhoto ? `<img src="${cleanPhoto}" alt="${cleanName}" style="width:100%;border-radius:10px;margin-bottom:8px;">` : ''}
-            <h3>${cleanName}</h3>
-            ${cleanPrice ? `<p class="price">${cleanPrice} грн</p>` : ''}
-            <p>Наявність: ${cleanAvail}</p>
-            <a href="${tgLink}" target="_blank" rel="noopener" class="btn ask">Замовити в Telegram</a>
-          </div>
-        `;
-      });
-    } catch (e) {
-      console.error('Помилка завантаження таблиці:', e);
+  for (let i = 0; i < row.length; i++) {
+    const ch = row[i];
+    if (ch === '"') {
+      if (inQuotes && row[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === ',' && !inQuotes) {
+      result.push(current);
+      current = '';
+    } else {
+      current += ch;
     }
   }
+  result.push(current);
+  return result.map(v => v.replace(/^"|"$/g, '').trim());
+}
 
-  document.addEventListener('DOMContentLoaded', loadCatalog);
+async function loadCatalog() {
+  const catalog = document.getElementById('catalog');
+  if (!catalog) return;
+
+  try {
+    const res = await fetch(CSV_URL);
+    const text = await res.text();
+    const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+    if (lines.length <= 1) return;
+
+    const rows = lines.slice(1).map(parseCsvRow);
+    rows.forEach((cols, index) => {
+      const [name, price, available, photo] = cols;
+      if (!name || /Object\.defineProperties|String\.prototype|Array\.prototype|function\s*\(/.test(name)) {
+        return;
+      }
+
+      const cleanName = name;
+      const numPrice = parseFloat(String(price || '').replace(',', '.').replace(/[^\d.]/g, ''));
+      const cleanPrice = !isNaN(numPrice) && numPrice > 0 ? numPrice : '';
+      const cleanAvail = available ? available : 'є';
+      const cleanPhoto = photo && /^https?:\/\//i.test(photo) ? photo : '';
+      const itemId = `sheet-${index + 1}`;
+
+      const msg = encodeURIComponent(`Добрый день! Хочу замовити: ${cleanName}${cleanPrice ? ` (${cleanPrice} грн)` : ''}`);
+      const tgLink = `https://t.me/${TG_USERNAME}?text=${msg}`;
+
+      const card = document.createElement('div');
+      card.className = 'item';
+      card.innerHTML = `
+        ${cleanPhoto ? `<img src="${cleanPhoto}" alt="${cleanName}" style="width:100%;border-radius:10px;margin-bottom:8px;">` : ''}
+        <h3>${cleanName}</h3>
+        ${cleanPrice ? `<p class="price">${cleanPrice} грн</p>` : ''}
+        <p>Наявність: ${cleanAvail}</p>
+        <button type="button" class="btn add-cart-btn">У кошик</button>
+        <a href="${tgLink}" target="_blank" rel="noopener" class="btn ask">Замовити в Telegram</a>
+      `;
+
+      const cartBtn = card.querySelector('.add-cart-btn');
+      cartBtn.addEventListener('click', () => {
+        if (typeof addToCart === 'function') {
+          addToCart({
+            id: itemId,
+            name: cleanName,
+            price: cleanPrice || 0,
+            img: cleanPhoto,
+            qty: 1
+          });
+        }
+      });
+
+      catalog.appendChild(card);
+    });
+  } catch (err) {
+    console.error('Помилка завантаження каталогу:', err);
+  }
+}
+
+loadCatalog();
 </script>
 </body>
 </html>
