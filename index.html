@@ -425,20 +425,20 @@ async function loadCatalog() {
         <a href="${tgLink}" target="_blank" rel="noopener" class="btn ask">Замовити в Telegram</a>
       `;
 
-      const cartBtn = card.querySelector('.add-cart-btn');
-      cartBtn.addEventListener('click', () => {
-        if (typeof addToCart === 'function') {
-          addToCart({
-            id: itemId,
-            name: cleanName,
-            price: cleanPrice || 0,
-            img: cleanPhoto,
-            qty: 1
-          });
-        }
+    const cartBtn = card.querySelector('.add-cart-btn');
+if (cartBtn) {
+  cartBtn.addEventListener('click', () => {
+    if (typeof addToCart === 'function') {
+      addToCart({
+        id: itemId,
+        name: cleanName,
+        price: cleanPrice || 0,
+        img: cleanPhoto,
+        qty: 1
       });
-
-      catalog.appendChild(card);
+    }
+  });
+}      catalog.appendChild(card);
     });
   } catch (err) {
     console.error('Помилка завантаження каталогу:', err);
